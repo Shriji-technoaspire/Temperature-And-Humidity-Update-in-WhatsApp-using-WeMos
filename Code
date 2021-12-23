@@ -1,0 +1,128 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h> 
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+ 
+// Include DHT master library to elicit information from DHT11 Temperture and Humidity Sensor.
+#include "DHT.h"
+ 
+// Define DHT object.
+DHT dht;
+ 
+// Define your WIFI settings.
+const char *ssid = "";
+const char *password = "";
+ 
+// Create data holders to send data packets.
+String temperature, humidity;
+String fingerprint, WebHook, HEDRON, id, token, message, from, to, trespass;
+ 
+// Define HC-SR04 pins and measurements to detect any movement.
+#define trig D4
+#define echo D5
+long duration, distance;
+ 
+void setup() {
+  // Start DHT object at digital pin 2.
+  dht.setup(D2);
+  
+  // Initiate HC-SR04 pins.
+  pinMode(trig, OUTPUT);
+  pinMode(echo, INPUT);
+ 
+  // Wait until connected.
+  delay(1000);
+  Serial.begin(115200);
+ 
+  // It is just for assuring connection is alive.
+  WiFi.mode(WIFI_OFF);
+  delay(1000);
+  // This mode allows NodeMCU to connect any WiFi directly.
+  WiFi.mode(WIFI_STA);        
+  // Connect NodeMCU to your WiFi.
+  WiFi.begin(ssid, password);
+  
+  Serial.print("\n\n");
+  Serial.print("Try to connect to WiFi. Please wait! ");
+  Serial.print("\n\n");
+  // Halt the code until connected to WiFi.
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print("*");
+  }
+ 
+  // If connection is successful, turn control led(if used) on and write WiFi SSID to serial monitor along with assigned IPAddress.
+  Serial.print("\n\n");
+  Serial.print("-------------------------------------");
+  Serial.print("\n\n");
+  Serial.print("Connection is successful!");
+  Serial.print("\n\n");
+  Serial.print("Connected WiFi SSID : ");
+  Serial.print(ssid);
+  Serial.print("\n\n");
+  Serial.println("Connected IPAddress : ");
+  Serial.println(WiFi.localIP());
+  Serial.print("\n\n"); 
+}
+ 
+void loop() {
+  // Get tenperature and humidity from DHT11. And, detect any tresspasser.
+  collectData();
+ 
+  // Enter the fingerprint.
+  fingerprint = "46 3c 5c 2c 67 11 cd 88 b7 e9 76 74 41 34 48 bd bc a5 b9 cf";
+ 
+  // Enter your hedron provided by TheAmplituhedron, Twilio Account Information, and phone numbers.
+  HEDRON = "TheAmplituhedron_Hedron";
+  id= "Twilio_SID";
+  token = "Twilio_Token";
+  from = "14151234567"; // Enter numbers.
+  to = "14081234567";
+ 
+  // Create message,use %0A to start a new line.
+  message = "Status:+Data+Obtained++%0A%0ATemperature:+" + temperature + "C%0A%0AHumidity:+" + humidity + "%%0A%0AMovement:+" + trespass + "%0A%0AWaiting...";
+ 
+  // Create the webhook path.
+  WebHook = "https://www.theamplituhedron.com/dashboard/WhatsApp-Web-Hook/" + HEDRON + ".php?id=" + id + "&token=" + token + "&body=" + message + "&from=" + from + "&to=" + to;
+  
+  // Create HTTP object to make a request.
+  HTTPClient http;
+  
+  // Send a request. 
+  http.begin(WebHook, fingerprint);
+  
+  int httpCode = http.GET();           
+  String payload = http.getString();    
+ 
+  if(httpCode == 200){ Serial.println("\n Message Sent Successfully..."); }else{ Serial.println("\n Not Working! Error Code: " + httpCode); }
+ 
+  // End HTTP Get Request.
+  http.end(); 
+  
+  // Send data packets every half minute to the webhook.
+  delay(30000);
+ 
+}
+ 
+  void collectData(){
+      // Wait until DHT11 Temperature and Humidity Sensor became ready.
+      delay(dht.getMinimumSamplingPeriod());
+      // Get temperature and humidity. 
+      humidity = dht.getHumidity();
+      temperature = dht.getTemperature();
+ 
+      // Detect any movement by using the trigger pin.
+      digitalWrite(trig, LOW);
+      delay(2);
+      digitalWrite(trig, HIGH);
+      delay(10);
+      digitalWrite(trig, HIGH);
+      duration = pulseIn(echo, HIGH);
+      distance = (duration / 2) / 29.1;
+      if(distance < 8){ trespass = "No+movement+detected!"; }else{ trespass = "Someone+is+trespassing!"; }
+ 
+      // Dump data packets.
+      String data = "\n Tempature: " + temperature + "\n Humidity: " + humidity + "\n Movement: " + trespass + "\n";
+      Serial.print(data);
+      
+    }
